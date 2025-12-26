@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>仙人YouTubeビュアー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #f5f6f8;
+}
+header {
+  background: #ffffff;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  display: flex;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+}
+input {
+  flex: 1;
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+button {
+  padding: 10px 16px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+  background: #ff4d4d;
+  color: #fff;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,.1);
+  overflow: hidden;
+  cursor: pointer;
+}
+.thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+}
+.card-body {
+  padding: 10px;
+}
+.title {
+  font-size: 14px;
+  font-weight: bold;
+}
+.author {
+  font-size: 12px;
+  color: #666;
+}
+</style>
+</head>
+
+<body>
+<header>
+  <input id="q" placeholder="動画を検索"
+    onkeydown="if(event.key==='Enter')search()">
+  <button onclick="search()">検索</button>
+</header>
+
+<div id="results" class="grid"></div>
+
+<script>
+async function search() {
+  const q = document.getElementById("q").value.trim();
+  if (!q) return;
+
+  const grid = document.getElementById("results");
+  grid.innerHTML = "読み込み中...";
+
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+
+    grid.innerHTML = "";
+    data.results.forEach(v => {
+      const c = document.createElement("div");
+      c.className = "card";
+      c.onclick = () => location.href = `watch.html?v=${v.videoId}`;
+      c.innerHTML = `
+        <img class="thumb" src="${v.thumbnail}">
+        <div class="card-body">
+          <div class="title"></div>
+          <div class="author"></div>
+        </div>`;
+      c.querySelector(".title").textContent = v.title;
+      c.querySelector(".author").textContent = v.author;
+      grid.appendChild(c);
+    });
+  } catch {
+    grid.textContent = "通信エラー";
+  }
+}
+</script>
+</body>
+</html>
