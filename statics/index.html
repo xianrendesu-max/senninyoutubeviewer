@@ -10,6 +10,9 @@ body {
   margin: 0;
   font-family: system-ui, sans-serif;
   background: #f5f6f8;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 header {
   background: #ffffff;
@@ -19,6 +22,7 @@ header {
   gap: 8px;
   position: sticky;
   top: 0;
+  z-index: 10;
 }
 input {
   flex: 1;
@@ -40,6 +44,7 @@ button {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 16px;
   padding: 16px;
+  flex: 1;
 }
 .card {
   background: #fff;
@@ -64,10 +69,17 @@ button {
   font-size: 12px;
   color: #666;
 }
+
+/* フッター（カウンター用） */
+footer {
+  text-align: center;
+  padding: 20px 0;
+}
 </style>
 </head>
 
 <body>
+
 <header>
   <input id="q" placeholder="動画を検索"
     onkeydown="if(event.key==='Enter')search()">
@@ -75,6 +87,29 @@ button {
 </header>
 
 <div id="results" class="grid"></div>
+
+<footer>
+<!--タグはここから-->
+<table border="0" cellspacing="0" cellpadding="0" align="center">
+  <tr>
+    <td align="center">
+      <a href="http://www.rays-counter.com/">
+        <img src="http://www.rays-counter.com/d1304_f8_006/694f1f714f28c/" alt="アクセスカウンター" border="0">
+      </a>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="http://www.rays-counter.com/images/counter_01.gif" border="0">
+      <img src="http://www.rays-counter.com/images/counter_02.gif" border="0">
+      <img src="http://www.rays-counter.com/images/counter_03.gif" border="0">
+      <img src="http://www.rays-counter.com/images/counter_04.gif" border="0">
+      <img src="http://www.rays-counter.com/images/counter_05.gif" border="0">
+    </td>
+  </tr>
+</table>
+<!--ここまで-->
+</footer>
 
 <script>
 async function search() {
@@ -109,5 +144,6 @@ async function search() {
   }
 }
 </script>
+
 </body>
 </html>
