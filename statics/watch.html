@@ -4,74 +4,234 @@
 <meta charset="UTF-8">
 <title>仙人YouTubeビュアー</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
 <style>
-body{margin:0;background:#f5f6f8;font-family:system-ui}
-.banner{display:flex;gap:8px;padding:10px;background:#fff;position:sticky;top:0}
-.banner button{flex:1;padding:10px;border-radius:10px;border:1px solid #ccc}
-.banner button.active{background:#4f46e5;color:#fff}
-.video-wrap{background:#000}
-iframe{width:100%;height:240px;border:none}
-.section{background:#fff;margin:12px;padding:12px;border-radius:12px}
-.download-btn{padding:10px 14px;border-radius:10px;background:#16a34a;color:#fff;border:none}
-.instance-bar{margin-top:8px;font-size:12px;color:#555}
+body {
+  margin: 0;
+  background: #f5f6f8;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ===== 再生方法バナー ===== */
+.banner {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  background: #ffffff;
+  border-bottom: 1px solid #ddd;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.banner button {
+  flex: 1;
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 14px;
+}
+.banner button.active {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+
+/* ===== 動画 ===== */
+.video-wrap {
+  background: #000;
+}
+iframe {
+  width: 100%;
+  height: 240px;
+  border: none;
+}
+
+/* ===== セクション ===== */
+.section {
+  background: #ffffff;
+  margin: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,.08);
+}
+
+/* ===== ダウンロード ===== */
+.download-btn {
+  display: inline-block;
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+}
+.download-list a {
+  display: block;
+  margin-top: 6px;
+  padding: 8px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #111;
+  text-decoration: none;
+}
+
+/* ===== コメント ===== */
+.comment {
+  border-top: 1px solid #eee;
+  padding: 10px 0;
+}
+.author {
+  font-weight: bold;
+  font-size: 13px;
+}
+.small {
+  font-size: 12px;
+  color: #666;
+}
 </style>
 </head>
+
 <body>
 
+<!-- ===== 再生方法切替 ===== -->
 <div class="banner">
-<button onclick="setPlayer('nocookie')" id="b1">nocookie</button>
-<button onclick="setPlayer('embed')" id="b2">embed</button>
-<button onclick="setPlayer('education')" id="b3">education</button>
+  <button id="btn-nocookie" onclick="setPlayer('nocookie')">nocookie</button>
+  <button id="btn-embed" onclick="setPlayer('embed')">embed</button>
+  <button id="btn-education" onclick="setPlayer('education')">education</button>
 </div>
 
+<!-- ===== 動画 ===== -->
 <div class="video-wrap">
-<img id="thumb" style="width:100%">
-<iframe id="player" allowfullscreen></iframe>
+  <iframe id="player" allowfullscreen></iframe>
 </div>
 
+<!-- ===== 概要・DL ===== -->
 <div class="section">
-<h2 id="title">読み込み中...</h2>
-<button class="download-btn" onclick="loadDownload()">⬇ ダウンロード</button>
-<div id="downloads"></div>
-<div class="instance-bar" id="inst"></div>
+  <h2 id="title">読み込み中...</h2>
+
+  <button class="download-btn" onclick="loadDownload()">⬇ ダウンロード</button>
+  <div id="downloadList" class="download-list"></div>
+
+  <p id="desc" class="small"></p>
+  <p id="instance" class="small"></p>
+</div>
+
+<!-- ===== コメント ===== -->
+<div class="section">
+  <h3>コメント</h3>
+  <div id="comments" class="small">読み込み中...</div>
 </div>
 
 <script>
-const v=new URLSearchParams(location.search).get("v")
-const player=document.getElementById("player")
-document.getElementById("thumb").src=`https://i.ytimg.com/vi/${v}/hqdefault.jpg`
+/* ===============================
+   共通
+=============================== */
+const videoId = new URLSearchParams(location.search).get("v");
+const player = document.getElementById("player");
+let EMBED_INSTANCE = "";
 
-let EMBED=""
+/* ===============================
+   インスタンス取得
+=============================== */
+fetch("/api/instance/embed")
+  .then(r => r.json())
+  .then(d => {
+    EMBED_INSTANCE = d.instance;
+    document.getElementById("instance").textContent =
+      "Embed Instance: " + EMBED_INSTANCE;
+  });
 
-fetch("/api/instance/embed").then(r=>r.json()).then(d=>{
-  EMBED=d.instance
-  document.getElementById("inst").textContent="Embed: "+EMBED
-})
-
-function setPlayer(t){
-  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"))
-  if(t==="nocookie"){player.src=`https://www.youtube-nocookie.com/embed/${v}`;b1.classList.add("active")}
-  if(t==="embed"){player.src=`${EMBED}/embed/${v}`;b2.classList.add("active")}
-  if(t==="education"){player.src=`https://www.youtubeeducation.com/embed/${v}`;b3.classList.add("active")}
+/* ===============================
+   再生切替
+=============================== */
+function clearActive() {
+  document.querySelectorAll(".banner button")
+    .forEach(b => b.classList.remove("active"));
 }
-setPlayer("nocookie")
 
-fetch(`/api/video?video_id=${v}`).then(r=>r.json()).then(d=>{
-  title.textContent=d.title
-})
+function setPlayer(type) {
+  clearActive();
+  if (type === "nocookie") {
+    player.src = `https://www.youtube-nocookie.com/embed/${videoId}`;
+    btn-nocookie.classList.add("active");
+  }
+  if (type === "embed") {
+    player.src = `${EMBED_INSTANCE}/embed/${videoId}`;
+    btn-embed.classList.add("active");
+  }
+  if (type === "education") {
+    player.src = `https://www.youtubeeducation.com/embed/${videoId}`;
+    btn-education.classList.add("active");
+  }
+}
+setPlayer("nocookie");
 
-function loadDownload(){
- fetch(`/api/download?video_id=${v}`).then(r=>r.json()).then(d=>{
-  downloads.innerHTML=""
-  d.formats.forEach(f=>{
-   const a=document.createElement("a")
-   a.href=f.url
-   a.target="_blank"
-   a.textContent=`${f.quality||"audio"} (${f.type})`
-   downloads.appendChild(a)
+/* ===============================
+   動画情報
+=============================== */
+fetch(`/api/video?video_id=${videoId}`)
+  .then(r => r.json())
+  .then(v => {
+    title.textContent = v.title;
+    desc.textContent = v.description || "";
   })
- })
+  .catch(() => {
+    title.textContent = "動画情報取得失敗";
+  });
+
+/* ===============================
+   コメント
+=============================== */
+fetch(`/api/comments?video_id=${videoId}`)
+  .then(r => r.json())
+  .then(c => {
+    const div = document.getElementById("comments");
+    div.innerHTML = "";
+
+    if (!c.comments || c.comments.length === 0) {
+      div.textContent = "コメントはありません";
+      return;
+    }
+
+    c.comments.forEach(cm => {
+      const el = document.createElement("div");
+      el.className = "comment";
+      el.innerHTML = `
+        <div class="author">${cm.author}</div>
+        <div>${cm.content}</div>
+        <div class="small">👍 ${cm.likeCount || 0}</div>
+      `;
+      div.appendChild(el);
+    });
+  })
+  .catch(() => {
+    comments.textContent = "コメント取得失敗";
+  });
+
+/* ===============================
+   ダウンロード
+=============================== */
+function loadDownload() {
+  fetch(`/api/download?video_id=${videoId}`)
+    .then(r => r.json())
+    .then(d => {
+      const list = document.getElementById("downloadList");
+      list.innerHTML = "";
+      d.formats.forEach(f => {
+        const a = document.createElement("a");
+        a.href = f.url;
+        a.target = "_blank";
+        a.textContent = `${f.quality || "audio"} (${f.type})`;
+        list.appendChild(a);
+      });
+    });
 }
 </script>
+
 </body>
 </html>
