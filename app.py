@@ -1,13 +1,11 @@
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import httpx
-import logging
-from urllib.parse import urlencode
+import asyncio
 
 app = FastAPI(title="仙人YouTubeビュアー")
-logging.basicConfig(level=logging.INFO)
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,41 +41,64 @@ INSTANCES = {
     ],
 }
 
-async def fetch_json(category: str, path: str):
-    async with httpx.AsyncClient(
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-        },
-        timeout=httpx.Timeout(12.0)
-    ) as client:
+HEADERS = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+}
 
+# ===============================
+# 最速インスタンス探索
+# ===============================
+async def probe_instance(client, base):
+    try:
+        r = await client.get(
+            base + "/api/v1/search?q=test&type=video",
+            timeout=4
+        )
+        if r.status_code == 200 and "application/json" in r.headers.get("content-type", ""):
+            return base
+    except:
+        pass
+    return None
+
+@app.get("/api/instances")
+async def get_fast_instances():
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        tasks = [probe_instance(client, i) for i in INSTANCES["video"]]
+        results = await asyncio.gather(*tasks)
+
+    alive = [r for r in results if r]
+    if not alive:
+        return {"fastest": None, "instances": []}
+
+    return {
+        "fastest": alive[0],
+        "instances": alive
+    }
+
+# ===============================
+# 共通 fetch
+# ===============================
+async def fetch_json(category, path):
+    async with httpx.AsyncClient(headers=HEADERS, timeout=10) as client:
         for base in INSTANCES.get(category, []):
             try:
                 r = await client.get(base + path)
-
                 if r.status_code != 200:
-                    logging.warning(f"{base} -> {r.status_code}")
                     continue
-
                 if "application/json" not in r.headers.get("content-type", ""):
-                    logging.warning(f"{base} -> not json")
                     continue
-
                 return r.json(), base
-
-            except Exception as e:
-                logging.warning(f"{base} -> error {e}")
+            except:
                 continue
-
     return None, None
 
-# ===== 検索 =====
+# ===============================
+# 検索
+# ===============================
 @app.get("/api/search")
-async def search(q: str = Query(...)):
-    params = urlencode({"q": q, "type": "video"})
-    data, _ = await fetch_json("search", f"/api/v1/search?{params}")
-
+async def search(q: str):
+    data, _ = await fetch_json("search", f"/api/v1/search?q={q}&type=video")
     if not data:
         return JSONResponse(status_code=503, content={"error": "search failed"})
 
@@ -90,23 +111,24 @@ async def search(q: str = Query(...)):
         } for v in data]
     }
 
-# ===== 動画情報 =====
+# ===============================
+# 動画情報
+# ===============================
 @app.get("/api/video")
 async def video(video_id: str):
     data, base = await fetch_json("video", f"/api/v1/videos/{video_id}")
-
     if not data:
         return JSONResponse(status_code=503, content={"error": "video failed"})
 
     return {
         "title": data.get("title"),
         "description": data.get("description"),
-        "thumbnail": f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
-        "instance": base,
-        "instances": INSTANCES["video"]
+        "instance": base
     }
 
-# ===== コメント =====
+# ===============================
+# コメント
+# ===============================
 @app.get("/api/comments")
 async def comments(video_id: str):
     data, _ = await fetch_json("comments", f"/api/v1/comments/{video_id}")
@@ -120,21 +142,20 @@ async def comments(video_id: str):
         } for c in data.get("comments", [])]
     }
 
-# ===== ダウンロード（stream URLへ遷移） =====
+# ===============================
+# ダウンロード（即リダイレクト）
+# ===============================
 @app.get("/api/download")
 async def download(video_id: str):
-    data, base = await fetch_json("video", f"/api/v1/videos/{video_id}")
-
+    data, _ = await fetch_json("video", f"/api/v1/videos/{video_id}")
     if not data:
         return JSONResponse(status_code=503, content={"error": "download failed"})
 
     streams = data.get("formatStreams", []) + data.get("adaptiveFormats", [])
     for s in streams:
-        if s.get("url"):
-            return {
-                "stream_url": s["url"],
-                "used_instance": base
-            }
+        url = s.get("url")
+        if url and url.startswith("http"):
+            return RedirectResponse(url=url, status_code=302)
 
     return JSONResponse(status_code=500, content={"error": "no stream"})
 
